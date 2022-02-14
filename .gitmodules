@@ -1,0 +1,9 @@
+[submodule "tacotron2"]
+	path = submodules/tacotron2
+	url = git@github.com:NoVarlok/sova-tts-engine.git
+[submodule "waveglow"]
+	path = submodules/waveglow
+	url = git@github.com:NoVarlok/sova-tts-vocoder.git
+[submodule "tps"]
+	path = submodules/tps
+	url = git@github.com:NoVarlok/sova-tts-tps.git
