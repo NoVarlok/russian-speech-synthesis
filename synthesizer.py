@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import librosa
 from scipy.io.wavfile import read, write
+from pysndfx import AudioEffectsChain
 
 from tps import cleaners, Handler, load_dict, save_dict
 from tps.content import ops
@@ -84,7 +85,7 @@ class Synthesizer:
         mel = torch.unsqueeze(mel, 0).to(self.device)
         return mel
 
-    def synthesize(self, text, gst_audio_path, save_path, sampling_rate=22050):
+    def synthesize(self, text, gst_audio_path):
         text_tensor = self.preprocess_text(text)
         text_tensor = torch.unsqueeze(text_tensor, 0)
         text_tensor = text_tensor.to(self.device)
@@ -95,8 +96,13 @@ class Synthesizer:
         audio = audio * self.max_wav_value
         audio = audio.squeeze()
         audio = audio.cpu().numpy()
+        return audio
+
+    def save_audio(self, audio, path, sample_rate=None):
+        if sample_rate is None:
+            sample_rate = self.sample_rate
         audio = audio.astype('int16')
-        write(save_path, sampling_rate, audio)
+        write(path, sample_rate, audio)
 
 
 if __name__ == '__main__':
@@ -115,7 +121,6 @@ if __name__ == '__main__':
     text = 'Я совершил десятки поступков уголовно наказуемых, и оставшихся безнаказанными.'
     gst_audio_path = '/home/lyakhtin/repos/tts/gst_wavs/boss-in-this-gym_fixed.wav'
     audio_path = '/home/lyakhtin/repos/tts/results/pipeline_results/test.wav'
-    synthesizer.synthesize(text=text,
-                           gst_audio_path=gst_audio_path,
-                           save_path=audio_path,
-                           sampling_rate=22050)
+    audio = synthesizer.synthesize(text=text,
+                                   gst_audio_path=gst_audio_path)
+    synthesizer.save_audio(audio, audio_path)
