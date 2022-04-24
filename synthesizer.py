@@ -104,6 +104,11 @@ class Synthesizer:
         audio = audio.astype('int16')
         write(path, sample_rate, audio)
 
+    def change_speed(self, audio, factor):
+        fx = (AudioEffectsChain().speed(factor))
+        changed_audio = fx(audio, sample_in=self.sample_rate)
+        return changed_audio
+
 
 if __name__ == '__main__':
     tacotron_checkpoint_path = '/home/lyakhtin/repos/tts/results/natasha/tacotron2/tacotron-gst-apr-05-frozen-gst/checkpoint_114000'
