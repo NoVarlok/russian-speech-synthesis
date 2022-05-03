@@ -7,3 +7,6 @@
 [submodule "tps"]
 	path = submodules/tps
 	url = git@github.com:NoVarlok/sova-tts-tps.git
+[submodule "hifigan"]
+	path = submodules/hifigan
+	url = git@github.com:NoVarlok/hifi-gan.git
