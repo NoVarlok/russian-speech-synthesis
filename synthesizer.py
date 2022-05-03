@@ -10,7 +10,7 @@ from tps import cleaners, Handler, load_dict, save_dict
 from tps.content import ops
 from tps.modules import RuEmphasizer
 
-# from tps.types import Delimiter
+from obscence_processing import ObsceneSplitter, ObsceneReplacement
 
 root_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, root_path)
@@ -20,7 +20,9 @@ sys.path.pop(0)
 
 
 class Synthesizer:
-    def __init__(self, text_handler, engine, vocoder, sample_rate, device="cuda"):
+    def __init__(self, text_handler, engine, vocoder, sample_rate, device="cuda",
+                 obscene_words_path='data/obscene.txt',
+                 obscene_replacement_path='data/dolphin_sound.wav', ):
         self.text_handler = text_handler
         try:
             stress_dict = ops.find("stress.dict", raise_exception=True)
@@ -38,6 +40,9 @@ class Synthesizer:
         self.max_wav_value = 32768.0
 
         self.device = device
+
+        self.obscene_splitter = ObsceneSplitter(f_words_path=obscene_words_path,
+                                                audio_obscene_replacement_path=obscene_replacement_path)
 
     def preprocess_text(self, raw_text):
         text = raw_text.lower()
@@ -98,6 +103,28 @@ class Synthesizer:
         audio = audio.cpu().numpy()
         return audio
 
+    def synthesize_filtered(self, text, gst_audio_path):
+        split_text = self.obscene_splitter.split(text)
+        gst_mel = self.load_mel(gst_audio_path).to(self.device)
+        audio_segments = []
+        for sample in split_text:
+            if isinstance(sample, str):
+                sample_tensor = self.preprocess_text(sample)
+                sample_tensor = torch.unsqueeze(sample_tensor, 0)
+                sample_tensor = sample_tensor.to(self.device)
+                mel_outputs_postnet = self.engine(sample_tensor, reference_mel=gst_mel)
+
+                audio = self.vocoder(mel_outputs_postnet)
+                audio = audio * self.max_wav_value
+                audio = audio.squeeze()
+                audio = audio.cpu().numpy()
+
+                audio_segments.append(audio)
+            elif isinstance(sample, ObsceneReplacement):
+                audio_segments.append(sample.audio)
+        filtered_audio = np.concatenate(audio_segments, axis=0)
+        return filtered_audio
+
     def save_audio(self, audio, path, sample_rate=None):
         if sample_rate is None:
             sample_rate = self.sample_rate
@@ -128,9 +155,9 @@ if __name__ == '__main__':
                               vocoder=vocoder,
                               sample_rate=22050,
                               device="cuda")
-    text = 'Я совершил десятки поступков уголовно наказуемых, и оставшихся безнаказанными.'
+    text = 'Пошел на хуй, хороший человек'
     gst_audio_path = '/home/lyakhtin/repos/tts/gst_wavs/boss-in-this-gym_fixed.wav'
-    audio_path = '/home/lyakhtin/repos/tts/results/pipeline_results/test.wav'
-    audio = synthesizer.synthesize(text=text,
-                                   gst_audio_path=gst_audio_path)
+    audio_path = '/home/lyakhtin/repos/tts/results/pipeline_results/test_filtering.wav'
+    audio = synthesizer.synthesize_filtered(text=text,
+                                            gst_audio_path=gst_audio_path)
     synthesizer.save_audio(audio, audio_path)
