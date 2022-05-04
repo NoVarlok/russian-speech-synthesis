@@ -14,3 +14,9 @@ sys.path.insert(0, import_path)
 from .waveglowwrapper import WaveglowWrapper
 
 sys.path.pop(0)
+
+import_path = os.path.join(backend_path, "hifigan")
+sys.path.insert(0, import_path)
+from .hifiganwrapper import HiFiGanWrapper
+
+sys.path.pop(0)
