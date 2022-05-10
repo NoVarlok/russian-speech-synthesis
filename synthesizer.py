@@ -9,8 +9,10 @@ from pysndfx import AudioEffectsChain
 from tps import cleaners, Handler, load_dict, save_dict
 from tps.content import ops
 from tps.modules import RuEmphasizer
+from tps.modules.ssml import parse_ssml_text
 
 from obscence_processing import ObsceneSplitter, ObsceneReplacement
+from ssml_wrappers import SSMLException, ssml_factory
 
 root_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, root_path)
@@ -125,6 +127,24 @@ class Synthesizer:
         filtered_audio = np.concatenate(audio_segments, axis=0)
         return filtered_audio
 
+    def synthesize_ssml(self, ssml_string, gst_audio_path):
+        try:
+            ssml_elements = parse_ssml_text(ssml_string)
+        except SSMLException as e:
+            raise e
+        except Exception as e:
+            raise RuntimeError("Failed to parse ssml")
+        audio_segments = []
+        for element in ssml_elements:
+            ssml_element = ssml_factory(element)
+            content, is_text = ssml_element.get_content()
+            if is_text:
+                content = self.synthesize(content, gst_audio_path)
+            audio = ssml_element.postprocess_content(content)
+            audio_segments.append(audio)
+        merged_audio = np.concatenate(audio_segments, axis=0)
+        return merged_audio
+
     def save_audio(self, audio, path, sample_rate=None):
         if sample_rate is None:
             sample_rate = self.sample_rate
@@ -145,19 +165,25 @@ class Synthesizer:
 if __name__ == '__main__':
     tacotron_checkpoint_path = '/home/lyakhtin/repos/tts/results/natasha/tacotron2/tacotron-gst-apr-05-frozen-gst/checkpoint_114000'
     waveglow_checkpoint_path = '/home/lyakhtin/repos/tts/results/natasha/waveglow/waveglow_converted.pt'
+    hifigan_checkpoint_path = '/home/lyakhtin/repos/tts/results/hifi_gan/UNIVERSAL_V1/hifi_gan_model'
     text_handler = Handler(charset='ru')
     engine = bw.Tacotron2Wrapper(model_path=tacotron_checkpoint_path, device='cuda')
-    vocoder = bw.WaveglowWrapper(model_path=waveglow_checkpoint_path,
-                                 device='cuda',
-                                 sigma=1.0)
+    # vocoder = bw.WaveglowWrapper(model_path=waveglow_checkpoint_path,
+    #                              device='cuda',
+    #                              sigma=1.0)
+    vocoder = bw.HiFiGanWrapper(model_path=hifigan_checkpoint_path, device='cuda')
     synthesizer = Synthesizer(text_handler=text_handler,
                               engine=engine,
                               vocoder=vocoder,
                               sample_rate=22050,
                               device="cuda")
     text = 'Пошел на хуй, хороший человек'
+    # ssml_text = '<speak><break time="200ms"/><s>Привет</s><prosody rate="slow" pitch="-2st"><sub alias="пока">привет</sub><audio src="/home/lyakhtin/repos/tts/gst_wavs/what-the-hell-are-you-two-doing.wav">дом</audio><break strength="x-strong"/></prosody><say-as interpret-as="characters">могу</say-as></speak>'
+    ssml_text = '<speak><break time="200ms"/><s>Привет</s><prosody rate="slow"><sub alias="пока">привет</sub></prosody></speak>'
+    ssml_text = '<speak>пока</speak>'
     gst_audio_path = '/home/lyakhtin/repos/tts/gst_wavs/boss-in-this-gym_fixed.wav'
     audio_path = '/home/lyakhtin/repos/tts/results/pipeline_results/test_filtering.wav'
-    audio = synthesizer.synthesize_filtered(text=text,
-                                            gst_audio_path=gst_audio_path)
+    # audio = synthesizer.synthesize_filtered(text=text,
+    #                                         gst_audio_path=gst_audio_path)
+    audio = synthesizer.synthesize_ssml(ssml_string=ssml_text, gst_audio_path=gst_audio_path)
     synthesizer.save_audio(audio, audio_path)
