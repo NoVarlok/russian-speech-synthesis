@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+import pandas as pd
 import torch
 import librosa
 from scipy.io.wavfile import read, write
@@ -22,7 +23,7 @@ sys.path.pop(0)
 
 
 class Synthesizer:
-    def __init__(self, text_handler, engine, vocoder, sample_rate, device="cuda",
+    def __init__(self, text_handler, engine, vocoder, sample_rate,
                  obscene_words_path='data/obscene.txt',
                  obscene_replacement_path='data/dolphin_sound.wav', ):
         self.text_handler = text_handler
@@ -41,7 +42,9 @@ class Synthesizer:
         self.hop_length = 256
         self.max_wav_value = 32768.0
 
-        self.device = device
+        self.device = self.engine.device
+        if self.engine.device != self.vocoder.device:
+            raise RuntimeError("Both model must be placed on the same device")
 
         self.obscene_splitter = ObsceneSplitter(f_words_path=obscene_words_path,
                                                 audio_obscene_replacement_path=obscene_replacement_path)
@@ -163,27 +166,37 @@ class Synthesizer:
 
 
 if __name__ == '__main__':
-    tacotron_checkpoint_path = '/home/lyakhtin/repos/tts/results/natasha/tacotron2/tacotron-gst-apr-05-frozen-gst/checkpoint_114000'
-    waveglow_checkpoint_path = '/home/lyakhtin/repos/tts/results/natasha/waveglow/waveglow_converted.pt'
-    hifigan_checkpoint_path = '/home/lyakhtin/repos/tts/results/hifi_gan/UNIVERSAL_V1/hifi_gan_model'
+    tacotron_checkpoint_path = '/home/lyakhtin/repos/tts/final_models/tacotron-gst-apr-17-final-low-lr-natasha-train'
+    vocoder_checkpoint_path = '/home/lyakhtin/repos/tts/final_models/waveglow_converted.pt'
+    device = 'cuda'
     text_handler = Handler(charset='ru')
-    engine = bw.Tacotron2Wrapper(model_path=tacotron_checkpoint_path, device='cuda')
-    # vocoder = bw.WaveglowWrapper(model_path=waveglow_checkpoint_path,
-    #                              device='cuda',
-    #                              sigma=1.0)
-    vocoder = bw.HiFiGanWrapper(model_path=hifigan_checkpoint_path, device='cuda')
+    engine = bw.Tacotron2Wrapper(model_path=tacotron_checkpoint_path, device=device)
+    vocoder = bw.WaveglowWrapper(model_path=vocoder_checkpoint_path,
+                                 device=device,
+                                 sigma=1.0)
+    # vocoder = bw.HiFiGanWrapper(model_path=vocoder_checkpoint_path, device=device)
     synthesizer = Synthesizer(text_handler=text_handler,
                               engine=engine,
                               vocoder=vocoder,
-                              sample_rate=22050,
-                              device="cuda")
-    text = 'Пошел на хуй, хороший человек'
-    # ssml_text = '<speak><break time="200ms"/><s>Привет</s><prosody rate="slow" pitch="-2st"><sub alias="пока">привет</sub><audio src="/home/lyakhtin/repos/tts/gst_wavs/what-the-hell-are-you-two-doing.wav">дом</audio><break strength="x-strong"/></prosody><say-as interpret-as="characters">могу</say-as></speak>'
-    ssml_text = '<speak><break time="200ms"/><s>Привет</s><prosody rate="slow"><sub alias="пока">привет</sub></prosody></speak>'
-    ssml_text = '<speak>пока</speak>'
-    gst_audio_path = '/home/lyakhtin/repos/tts/gst_wavs/boss-in-this-gym_fixed.wav'
-    audio_path = '/home/lyakhtin/repos/tts/results/pipeline_results/test_filtering.wav'
-    # audio = synthesizer.synthesize_filtered(text=text,
-    #                                         gst_audio_path=gst_audio_path)
-    audio = synthesizer.synthesize_ssml(ssml_string=ssml_text, gst_audio_path=gst_audio_path)
-    synthesizer.save_audio(audio, audio_path)
+                              sample_rate=22050)
+    input_data_path = '/home/lyakhtin/repos/tts/datasets/natasha_dataset/tacotron_inference_short.csv'
+    src_audio_dir = '/home/lyakhtin/repos/tts/gst_wavs/'
+    audio_list = ['boss-in-this-gym_fixed', 'deep-dark-fantasies_fixed', 'fuckyou', 'iam-cumming_fixed', 'laugh',
+                  'what-the-hell-are-you-two-doing']
+    tacotron_name = tacotron_checkpoint_path.split('/')[-1]
+    vocoder_name = vocoder_checkpoint_path.split('/')[-1]
+    save_directory_path = '/home/lyakhtin/repos/tts/final_models/results/' + f'{tacotron_name}_{vocoder_name}'
+    if not os.path.exists(save_directory_path):
+        os.mkdir(save_directory_path)
+    df = pd.read_csv(input_data_path, sep='|')
+    for audio_name in audio_list:
+        audio_path = src_audio_dir + audio_name + '.wav'
+        audio_dir = os.path.join(save_directory_path, audio_name)
+        if not os.path.exists(audio_dir):
+            os.mkdir(audio_dir)
+        for index, row in df.iterrows():
+            wav_name = row[0]
+            text = row[1]
+            generated_path = os.path.join(audio_dir, wav_name)
+            audio = synthesizer.synthesize(text, audio_path)
+            synthesizer.save_audio(audio, generated_path, 22050)
