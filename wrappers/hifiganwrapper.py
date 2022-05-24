@@ -15,7 +15,6 @@ class HiFiGanWrapper:
         self.device = torch.device("cpu" if not torch.cuda.is_available() else device)
         self.dtype = torch.float
 
-        model = torch.load(model_path)
         self.model = torch.load(model_path, map_location=self.device)
         self.model.device = self.device
 
