@@ -166,37 +166,21 @@ class Synthesizer:
 
 
 if __name__ == '__main__':
-    tacotron_checkpoint_path = '/home/lyakhtin/repos/tts/final_models/tacotron-gst-apr-17-final-low-lr-natasha-train'
-    vocoder_checkpoint_path = '/home/lyakhtin/repos/tts/final_models/waveglow_converted.pt'
+    tacotron_checkpoint_path = '/home/lyakhtin/repos/tts/final_models/tacotron-gst-apr-17-unfrozen-gst'
+    vocoder_checkpoint_path = '/home/lyakhtin/repos/tts/final_models/hifi-gan-v1-fine-tuned'
     device = 'cuda'
     text_handler = Handler(charset='ru')
     engine = bw.Tacotron2Wrapper(model_path=tacotron_checkpoint_path, device=device)
-    vocoder = bw.WaveglowWrapper(model_path=vocoder_checkpoint_path,
-                                 device=device,
-                                 sigma=1.0)
-    # vocoder = bw.HiFiGanWrapper(model_path=vocoder_checkpoint_path, device=device)
+    # vocoder = bw.WaveglowWrapper(model_path=vocoder_checkpoint_path,
+    #                              device=device,
+    #                              sigma=1.0)
+    vocoder = bw.HiFiGanWrapper(model_path=vocoder_checkpoint_path, device=device)
     synthesizer = Synthesizer(text_handler=text_handler,
                               engine=engine,
                               vocoder=vocoder,
                               sample_rate=22050)
-    input_data_path = '/home/lyakhtin/repos/tts/datasets/natasha_dataset/tacotron_inference_short.csv'
-    src_audio_dir = '/home/lyakhtin/repos/tts/gst_wavs/'
-    audio_list = ['boss-in-this-gym_fixed', 'deep-dark-fantasies_fixed', 'fuckyou', 'iam-cumming_fixed', 'laugh',
-                  'what-the-hell-are-you-two-doing']
-    tacotron_name = tacotron_checkpoint_path.split('/')[-1]
-    vocoder_name = vocoder_checkpoint_path.split('/')[-1]
-    save_directory_path = '/home/lyakhtin/repos/tts/final_models/results/' + f'{tacotron_name}_{vocoder_name}'
-    if not os.path.exists(save_directory_path):
-        os.mkdir(save_directory_path)
-    df = pd.read_csv(input_data_path, sep='|')
-    for audio_name in audio_list:
-        audio_path = src_audio_dir + audio_name + '.wav'
-        audio_dir = os.path.join(save_directory_path, audio_name)
-        if not os.path.exists(audio_dir):
-            os.mkdir(audio_dir)
-        for index, row in df.iterrows():
-            wav_name = row[0]
-            text = row[1]
-            generated_path = os.path.join(audio_dir, wav_name)
-            audio = synthesizer.synthesize(text, audio_path)
-            synthesizer.save_audio(audio, generated_path, 22050)
+    text = 'Я соверш+ил десятки поступков уголовно наказ+уемых, и оставшихся безнаказанными.'
+    reference_audio_path = '/home/lyakhtin/repos/tts/datasets/natasha_dataset/wavs/000009.wav'
+    save_path = '/home/lyakhtin/repos/tts/generated.wav'
+    audio = synthesizer.synthesize(text, reference_audio_path)
+    synthesizer.save_audio(audio, save_path, 22050)

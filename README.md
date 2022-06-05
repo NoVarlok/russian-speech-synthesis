@@ -14,3 +14,10 @@ $ sudo apt update
 $ sudo apt install sox
 $ pip install -r requirements.txt
 ```
+
+## How to use
+
+The speech synthesis is performed by the Synthesizer class, which implements 3 methods for speech synthesis:
+* synthesize(text, gst_audio_path) - normal speech synthesis
+* synthesize_filtered(text, gst_audio_path) - speech synthesis with filtering of absentee speech
+* synthesize_ssml(ssml_string, gst_audio_path) - speech synthesis based on ssml markup
